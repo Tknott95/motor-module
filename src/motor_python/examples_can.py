@@ -6,6 +6,7 @@ from loguru import logger
 
 from motor_python.cube_mars_motor_can import CubeMarsAK606v3CAN
 from motor_python.definitions import MOTOR_LIMITS, TendonAction
+from motor_python.motor_manager import MotorManager
 
 # ---------------------------------------------------------------------------
 # Composable helpers (accept a motor instance)
@@ -226,6 +227,53 @@ def run_dual_motor_demo_can(
         logger.info("Dual-motor demo interrupted by user")
         motor_left.stop()
         motor_right.stop()
+
+
+def run_multi_motor_demo(manager: MotorManager) -> None:
+    """Run a generalized multi-motor demo for any number of CAN motors."""
+    motor_list = list(manager)
+    motor_count = len(motor_list)
+    logger.info(f"Starting multi-motor demo with {motor_count} motors")
+
+    try:
+        logger.info("=== Multi-motor demo: synchronized PULL ===")
+        for motor in motor_list:
+            motor.control_exosuit_tendon(TendonAction.PULL, velocity_erpm=8000)
+        time.sleep(1.5)
+        for motor in motor_list:
+            motor.get_status()
+
+        logger.info("=== Multi-motor demo: synchronized RELEASE ===")
+        for motor in motor_list:
+            motor.control_exosuit_tendon(TendonAction.RELEASE, velocity_erpm=8000)
+        time.sleep(1.5)
+
+        if motor_count == 2:
+            left_motor, right_motor = motor_list
+            logger.info("=== Multi-motor demo: left PULL / right RELEASE ===")
+            left_motor.control_exosuit_tendon(TendonAction.PULL, velocity_erpm=8000)
+            right_motor.control_exosuit_tendon(TendonAction.RELEASE, velocity_erpm=8000)
+            time.sleep(1.5)
+
+            logger.info("=== Multi-motor demo: right PULL / left RELEASE ===")
+            left_motor.control_exosuit_tendon(TendonAction.RELEASE, velocity_erpm=8000)
+            right_motor.control_exosuit_tendon(TendonAction.PULL, velocity_erpm=8000)
+            time.sleep(1.5)
+        elif motor_count > 2:
+            logger.info("=== Multi-motor demo: alternating PULL/RELEASE ===")
+            for idx, motor in enumerate(motor_list):
+                action = TendonAction.PULL if idx % 2 == 0 else TendonAction.RELEASE
+                motor.control_exosuit_tendon(action, velocity_erpm=8000)
+            time.sleep(1.5)
+
+        logger.info("=== Multi-motor demo: STOP all ===")
+        for motor in motor_list:
+            motor.control_exosuit_tendon(TendonAction.STOP)
+
+    except KeyboardInterrupt:
+        logger.info("Multi-motor demo interrupted by user")
+        for motor in motor_list:
+            motor.stop()
 
 
 def multi_motor_can_example(
