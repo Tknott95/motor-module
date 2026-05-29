@@ -444,10 +444,10 @@ class PIDConfig:
     :param tuple[float, float] | None output_limits: (low, high) clamp on integral term and final output. None = no clamp.
     """
 
-    proportional_gain: float = 14.0
+    proportional_gain: float = 2.0
     integral_gain: float = 0.0
     derivative_gain: float = 0.02
-    output_limits: "tuple[float, float] | None" = -20, 20
+    output_limits: "tuple[float, float] | None" = -7, 7
 
 
 # CRC16 Lookup Table from CubeMars Manual

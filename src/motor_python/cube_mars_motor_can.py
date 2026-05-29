@@ -1165,7 +1165,7 @@ class CubeMarsAK606v3CAN(BaseMotor):
 
         logger.info(
             f"MIT cmd: pos={pos_rad:.3f} rad vel={vel_rad_s:.3f} rad/s "
-            f"kp={kp:.2f} kd={kd:.2f} tau={torque_ff_nm:.2f} Nm"
+            f"kpinfo={kp:.2f} kd={kd:.2f} tau={torque_ff_nm:.2f} Nm"
         )
 
     def stop(self) -> None:

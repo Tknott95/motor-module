@@ -21,6 +21,8 @@ from __future__ import annotations
 import argparse
 import time
 
+from loguru import logger
+
 from motor_python.cube_mars_motor_can import CubeMarsAK606v3CAN
 from motor_python.motor_control_using_pid import PIDMotorController
 
@@ -122,7 +124,7 @@ def main() -> int:
             target_degrees=args.target,
             duration=args.duration,
             rate_hz=args.rate_hz,
-            kp=20.0,
+            kp=8.0,
             kd=1.0,
         )
 
@@ -144,10 +146,12 @@ def main() -> int:
             try:
                 motor.stop()
             except Exception:
+                logger.debug("Failed to stop motor during cleanup, ignoring")
                 pass
             try:
                 motor.close()
             except Exception:
+                logger.debug("Failed to close motor during cleanup, ignoring")
                 pass
 
 

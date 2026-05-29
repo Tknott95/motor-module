@@ -1,7 +1,7 @@
 """A pid controller for the motor."""
 
-from venv import logger
-
+import numpy as np
+from loguru import logger
 from numpy import clip
 
 from motor_python.definitions import LowPassFilterConfig, PIDConfig
@@ -43,7 +43,7 @@ class PIDController:
         """Compute the velocity command for one control cycle using the PID controller.
 
         :param float timestamp: Current timestamp of the controller.
-        :param float motor_reference: Desired target velocity motor command of reference motion.
+        :param float motor_reference: Desired target position of the motor.
         :param float motor_position: Current measured motor position of actual motion.
 
         :return: Commanded velocity, clamped to output_limits if set.
@@ -57,15 +57,14 @@ class PIDController:
         #  calculate how much the motors have to move
         error = motor_reference - motor_position
 
-        MAX_ERROR = 180  # degrees (or rad depending on your system)
-        if abs(error) > MAX_ERROR:
-            logger.debug(
-                f"Warning: PID error {error:.2f} exceeds max expected range, clipping to ±{MAX_ERROR}"
-            )
-            error = clip(error, -MAX_ERROR, MAX_ERROR)
+        # For safety
+        MAX_ERROR = np.radians(60)  # radians
+        error = clip(error, -MAX_ERROR, MAX_ERROR)
 
+        # P term
         proportional = self.config.proportional_gain * error
 
+        # I term with integral clamp
         time_difference = timestamp - self._prev_timestamp
         self._integral += error * time_difference
         integral_term = self.config.integral_gain * self._integral
@@ -80,11 +79,15 @@ class PIDController:
 
         integral = clip(a=integral_term, a_min=low, a_max=high)
 
-        _, damping_derivative = self.low_pass_filter.step(
+        # Low pass filter the previous velocity output to get the D term damping feedback
+        damping_derivative, _ = self.low_pass_filter.step(
             x=self._prev_velocity, time_difference=time_difference
         )
 
+        # D term
         derivative = self.config.derivative_gain * damping_derivative
+
+        # Final output
         output = proportional + integral - derivative
         if self.config.output_limits is not None:
             low, high = self.config.output_limits

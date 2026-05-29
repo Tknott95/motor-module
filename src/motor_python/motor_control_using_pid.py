@@ -1,9 +1,9 @@
 """AK60-6 PID controller using CubeMars Force Control Mode (MIT) only."""
 
 import time
-from venv import logger
 
 import numpy as np
+from loguru import logger
 
 from motor_python.cube_mars_motor_can import CubeMarsAK606v3CAN
 from motor_python.definitions import LowPassFilterConfig, PIDConfig
@@ -46,49 +46,53 @@ class PIDMotorController:
         :param duration: how long to run control loop
         :param rate_hz: control frequency
         """
+        logger.info(
+            f"Moving to {target_degrees} degrees for {duration} seconds at {rate_hz} Hz"
+        )
         dt = 1.0 / rate_hz
         start_time = time.time()
+
+        target_rad = np.radians(target_degrees)
 
         while time.time() - start_time < duration:
             current_position = self.motor.get_position()
             if current_position is None:
                 continue
 
-            error = target_degrees - current_position
-            if abs(error) < 0.2:  # degrees
-                logger.info(
-                    f"Target reached within tolerance: {current_position:.2f} deg"
-                )
+            current_position_rad = np.radians(current_position)
+
+            error = target_rad - current_position_rad
+            if abs(error) < 0.01:  # radians
+                logger.info(f"Target reached within tolerance: {current_position} deg")
                 break
 
             now = time.monotonic()
 
-            # --- PID compute (deg in, deg in) ---
+            # --- PID compute (output in rad/s) ---
             velocity_cmd = self.pid.compute_output(
                 timestamp=now,
-                motor_reference=target_degrees,
-                motor_position=current_position,
+                motor_reference=target_rad,
+                motor_position=current_position_rad,
             )
 
-            logger.info(f"PID raw output: {velocity_cmd:.2f} deg/s")
-
-            MAX_VELOCITY_DEG_S = 30
-            velocity_cmd = np.clip(
-                velocity_cmd, -MAX_VELOCITY_DEG_S, MAX_VELOCITY_DEG_S
-            )
-
-            # convert deg/s → rad/s (MIT expects rad/s)
-            velocity_rad_s = np.radians(velocity_cmd)
+            MAX_VELOCITY_RAD_S = PIDConfig.output_limits
+            if MAX_VELOCITY_RAD_S is not None:
+                velocity_cmd = np.clip(
+                    velocity_cmd, MAX_VELOCITY_RAD_S[0], MAX_VELOCITY_RAD_S[1]
+                )
 
             self.motor.set_mit_mode(
-                pos_rad=np.radians(target_degrees),
-                vel_rad_s=velocity_rad_s,
+                pos_rad=target_rad,
+                vel_rad_s=velocity_cmd,
                 kp=kp,
                 kd=kd,
             )
+
+            velocity_cmd_deg_s = np.degrees(velocity_cmd)
+
             logger.info(
                 f"Current = {current_position:.2f} deg | Target = {target_degrees:.2f} deg | "
-                f"PID vel = {velocity_cmd:.2f} deg/s ({velocity_rad_s:.2f} rad/s)"
+                f"Error = {np.degrees(error):.2f} deg | PID vel = {velocity_cmd_deg_s:.2f} deg/s"
             )
 
             time.sleep(dt)
