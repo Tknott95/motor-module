@@ -454,12 +454,18 @@ def main() -> int:
         return 0
 
     except KeyboardInterrupt:
-        print("\nInterrupted by user")
+        print("\nInterrupted by user, saving results and exiting...")
         return 130
     except Exception as exc:
         print(f"\nFAIL: {exc}")
         return 1
     finally:
+        if csv_file is not None:
+            try:
+                csv_file.flush()
+                csv_file.close()
+            except Exception:
+                pass
         if motor is not None:
             try:
                 motor.stop()
