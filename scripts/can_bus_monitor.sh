@@ -20,7 +20,7 @@ echo "Starting CAN state logger..."
     while true; do
         echo "=== $(date +%T.%N) ==="
         ip -details -statistics link show can0 2>&1 | grep -E "state|berr-counter|can|tx|rx|error"
-        sleep 0.1
+        sleep 1
     done
 ) >> "$STATEFILE" &
 STATE_PID=$!

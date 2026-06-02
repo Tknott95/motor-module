@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from motor_python.utils import _write_summary_csv
+from motor_python.utils import write_summary_csv
 
 import numpy as np
 
@@ -1658,7 +1658,7 @@ def build_position_functional_summary(
     """Create a retained-segment summary geared toward Chapter 4 prose."""
     _, plt = _require_analysis_runtime()
     summary_rows = summarize_position_functional_rows(rows)
-    _write_summary_csv(output_dir / "position_functional_summary.csv", summary_rows)
+    write_summary_csv(output_dir / "position_functional_summary.csv", summary_rows)
     if not summary_rows:
         return
 
@@ -1776,7 +1776,7 @@ def build_velocity_command_response(
     """Create a velocity command-response summary for Chapter 4."""
     _, plt = _require_analysis_runtime()
     summary_rows = summarize_velocity_response_rows(rows)
-    _write_summary_csv(output_dir / "velocity_command_response.csv", summary_rows)
+    write_summary_csv(output_dir / "velocity_command_response.csv", summary_rows)
     if not summary_rows:
         return
 
@@ -1922,7 +1922,7 @@ def run_position_mode(args: argparse.Namespace) -> list[dict[str, Any]]:
                 time_shift_s=args.time_shift_s,
             )
         )
-    _write_summary_csv(output_dir / "position_summary.csv", all_rows)
+    write_summary_csv(output_dir / "position_summary.csv", all_rows)
     build_position_target_summary(all_rows, output_dir=output_dir)
     build_position_functional_summary(all_rows, output_dir=output_dir)
     return all_rows
@@ -1956,7 +1956,7 @@ def run_velocity_mode(args: argparse.Namespace) -> list[dict[str, Any]]:
         )
         all_rows.extend(rows)
         scatter_points.extend(pair_scatter)
-    _write_summary_csv(output_dir / "velocity_summary.csv", all_rows)
+    write_summary_csv(output_dir / "velocity_summary.csv", all_rows)
     build_velocity_scatter(scatter_points, output_dir=output_dir)
     build_velocity_command_response(all_rows, output_dir=output_dir)
     build_velocity_agreement_summary(all_rows, output_dir=output_dir)
