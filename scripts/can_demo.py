@@ -15,7 +15,7 @@ produces real movement.  Those sections are marked [ACK-ONLY].
 
 import time
 
-from motor_python.cube_mars_motor_can import  CubeMarsAK606v3CAN
+from motor_python.cube_mars_motor_can import CubeMarsAK606v3CAN
 from motor_python.base_motor import CAN_ERROR_CODES
 from motor_python.definitions import TendonAction, CAN_DEFAULTS
 
@@ -124,7 +124,7 @@ def main() -> None:
         section("8. set_velocity()  [ACK-ONLY — no shaft rotation on this firmware]")
         print("  Sending velocity command (5000 ERPM) — expect no movement ...")
         motor.set_velocity(velocity_erpm=5000)
-        time.sleep(CAN_DEFAULTS.can_reset_pause * 0.5)  #0.5s
+        time.sleep(CAN_DEFAULTS.can_reset_pause * 0.5)
         fb_vel = motor.get_status()
         if fb_vel:
             moved = abs(fb_vel.speed_erpm) > 500

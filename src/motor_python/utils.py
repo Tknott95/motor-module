@@ -77,7 +77,7 @@ def erpm_to_degrees_per_second(erpm: int | float) -> float:
     )
 
 
-def _write_summary_csv(path: Path, rows: Sequence[dict[str, Any]]) -> None:
+def write_summary_csv(path: Path, rows: Sequence[dict[str, Any]]) -> None:
     """Write summary rows to CSV."""
     path.parent.mkdir(parents=True, exist_ok=True)
     if not rows:

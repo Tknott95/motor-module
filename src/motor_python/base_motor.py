@@ -409,9 +409,7 @@ class BaseMotor(abc.ABC):
                         "loop_effective_hz": 1.0 / float(np.mean(dts)),
                         "loop_intervals_total": len(dts),
                         "loop_jitter_count": int(jitter_count),
-                        "loop_jitter_ratio": float(
-                            jitter_count / len(dts)
-                        )  # delete if unnecessary
+                        "loop_jitter_ratio": float(jitter_count / len(dts))
                         if len(dts) > 0
                         else 0.0,
                     }

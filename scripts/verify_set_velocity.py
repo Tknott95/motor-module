@@ -83,13 +83,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--motor-id",
         type=lambda value: int(value, 0),
-        default=0x03,
+        default=CAN_DEFAULTS.motor_can_id,
         help="Motor CAN ID in decimal or hex (default: 0x03)",
     )
     parser.add_argument(
         "--bitrate",
         type=int,
-        default=1_000_000,
+        default=CAN_DEFAULTS.bitrate,
         help="CAN bitrate (default: 1000000)",
     )
     parser.add_argument(

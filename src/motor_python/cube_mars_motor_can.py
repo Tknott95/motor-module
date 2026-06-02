@@ -5,6 +5,7 @@ from __future__ import annotations
 import struct
 import threading
 import time
+from collections import deque
 from typing import ClassVar, Literal
 
 import can
@@ -115,7 +116,9 @@ class CubeMarsAK606v3CAN(BaseMotor):
         self._refresh_no_feedback = 0
         self._cumulative_refresh_send_failures = 0  # Cumulative counter (never resets)
         self._cumulative_refresh_no_feedback = 0  # Cumulative counter (never resets)
-        self._refresh_timestamps: list[float] = []  # Timestamps for jitter analysis
+        self._refresh_timestamps: deque[float] = deque(
+            maxlen=60000
+        )  # Timestamps for jitter analysis
 
         # Transport health / pacing
         self._send_lock = threading.Lock()

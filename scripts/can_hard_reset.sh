@@ -16,7 +16,7 @@ sudo modprobe mttcan
 sudo ip link set "$INTERFACE" up type can bitrate "$BITRATE" berr-reporting on restart-ms 100
 sudo ip link set "$INTERFACE" txqueuelen 1000
 sudo ip link set "$INTERFACE" up
-sleep 5
+sleep 1
 
 echo "CAN hard reset complete"
 ip -details -statistics link show "$INTERFACE"
