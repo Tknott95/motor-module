@@ -142,7 +142,7 @@ def parse_args() -> argparse.Namespace:
         "--tolerance-hz",
         type=float,
         default=5.0,
-        help="Allowed absolute difference between target and actual frequency (default: 10 Hz)",
+        help="Allowed absolute difference between target and actual frequency (default: 5 Hz)",
     )
     parser.add_argument(
         "--plot-path",
@@ -212,8 +212,10 @@ def ensure_can_ready(interface: str, bitrate: int, *, mode: str) -> None:
             "CAN still unhealthy after reset. Check wiring/power/UART disconnect."
         )
 
+
 def is_within_tolerance(target: float, actual: float, tol: float) -> bool:
     return abs(actual - target) <= tol
+
 
 def _target_frequency_sequence(start_hz: float, end_hz: float, step_hz: float) -> list[float]:
     values = []
@@ -240,12 +242,18 @@ def measure_frequency(
     motor.set_velocity(command_erpm)
     time.sleep(warmup_seconds)
 
-    if hasattr(motor, "_refresh_timestamps"):
-        motor._refresh_timestamps.clear()
+    # Prefer public API to reset timing diagnostics; fall back to private attr
+    try:
+        motor.reset_timing_stats()
+    except Exception:
+        if hasattr(motor, "_refresh_timestamps"):
+            try:
+                motor._refresh_timestamps.clear()
+            except Exception:
+                pass
 
     start = time.monotonic()
     time.sleep(phase_seconds)
-    elapsed = time.monotonic() - start
 
     stats = motor.get_timing_stats()
     effective_hz = float(stats.get("loop_effective_hz", 0.0))
@@ -266,30 +274,6 @@ def measure_frequency(
         command_erpm=command_erpm,
         timestamp_iso=datetime.now().isoformat(timespec="seconds"),
     )
-
-
-def write_csv(path: Path, results: list[FrequencyResult]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=CSV_FIELDNAMES)
-        writer.writeheader()
-        for result in results:
-            writer.writerow({
-                "target_hz": f"{result.target_hz:.3f}",
-                "actual_hz": f"{result.actual_hz:.3f}",
-                "loop_period_expected_s": f"{result.loop_period_expected_s:.6f}" if result.loop_period_expected_s is not None else "",
-                "loop_period_mean_s": f"{result.loop_period_mean_s:.6f}" if result.loop_period_mean_s is not None else "",
-                "loop_period_std_s": f"{result.loop_period_std_s:.6f}" if result.loop_period_std_s is not None else "",
-                "loop_period_min_s": f"{result.loop_period_min_s:.6f}" if result.loop_period_min_s is not None else "",
-                "loop_period_max_s": f"{result.loop_period_max_s:.6f}" if result.loop_period_max_s is not None else "",
-                "loop_intervals_total": result.loop_intervals_total,
-                "loop_jitter_count": result.loop_jitter_count,
-                "loop_jitter_ratio": f"{result.loop_jitter_ratio:.3f}" if result.loop_jitter_ratio is not None else "",
-                "cumulative_send_failures": result.cumulative_send_failures,
-                "cumulative_missed_feedback": result.cumulative_missed_feedback,
-                "command_erpm": result.command_erpm,
-                "timestamp_iso": result.timestamp_iso,
-            })
 
 
 def plot_results(results: list[FrequencyResult], path: Path) -> None:
@@ -325,6 +309,9 @@ def main() -> int:
     last_good_frequency = None
     args = parse_args()
     validate_args(args)
+
+    csv_file = None
+    csv_writer = None
 
     csv_path = _resolve_csv_path(args.csv_path, prefix="verify_frequency")
     plot_path = _resolve_plot_path(args.plot_path, prefix="verify_frequency")
@@ -376,6 +363,37 @@ def main() -> int:
 
         print("Starting frequency sweep...")
 
+        # csv setup
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        csv_file = csv_path.open("w", newline="", encoding="utf-8")
+        csv_writer = csv.DictWriter(csv_file, fieldnames=CSV_FIELDNAMES)
+        csv_writer.writeheader()
+        csv_file.flush()
+
+        def write_csv_row(result: FrequencyResult) -> None:
+            if csv_writer is None or csv_file is None:
+                return
+
+            row = {
+                "target_hz": f"{result.target_hz:.3f}",
+                "actual_hz": f"{result.actual_hz:.3f}",
+                "loop_period_expected_s": f"{result.loop_period_expected_s:.6f}" if result.loop_period_expected_s is not None else "",
+                "loop_period_mean_s": f"{result.loop_period_mean_s:.6f}" if result.loop_period_mean_s is not None else "",
+                "loop_period_std_s": f"{result.loop_period_std_s:.6f}" if result.loop_period_std_s is not None else "",
+                "loop_period_min_s": f"{result.loop_period_min_s:.6f}" if result.loop_period_min_s is not None else "",
+                "loop_period_max_s": f"{result.loop_period_max_s:.6f}" if result.loop_period_max_s is not None else "",
+                "loop_intervals_total": result.loop_intervals_total,
+                "loop_jitter_count": result.loop_jitter_count,
+                "loop_jitter_ratio": f"{result.loop_jitter_ratio:.3f}" if result.loop_jitter_ratio is not None else "",
+                "cumulative_send_failures": result.cumulative_send_failures,
+                "cumulative_missed_feedback": result.cumulative_missed_feedback,
+                "command_erpm": result.command_erpm,
+                "timestamp_iso": result.timestamp_iso,
+            }
+
+            csv_writer.writerow(row)
+            csv_file.flush()
+
         sequence = _target_frequency_sequence(args.start_hz, args.end_hz, args.step_hz)
         for target_hz in sequence:
             print(f"\nTesting target={target_hz:.1f} Hz...")
@@ -388,6 +406,8 @@ def main() -> int:
             )
             results.append(result)
 
+            write_csv_row(result)
+
             within_tol = is_within_tolerance(
                 result.target_hz, result.actual_hz, args.tolerance_hz
             )
@@ -395,9 +415,11 @@ def main() -> int:
             status = "OK" if within_tol else "EXCEEDS"
 
             print(
-                f"target={result.target_hz:.1f} Hz actual={result.actual_hz:.1f} Hz "
+                f"target={result.target_hz:.1f} Hz "
+                f"actual={result.actual_hz:.1f} Hz "
                 f"mean={result.loop_period_mean_s or 0:.5f}s "
                 f"jitter={result.loop_jitter_count}"
+                f"status={status}"
             )
 
             if within_tol:
@@ -405,6 +427,7 @@ def main() -> int:
             elif limit_frequency is None:
                 limit_frequency = result.target_hz
 
+        # Summary
         print(f"\n{SEPARATOR}")
         print("Frequency Limit Analysis")
         print(SEPARATOR)
@@ -421,7 +444,6 @@ def main() -> int:
 
         print(SEPARATOR)
 
-        write_csv(csv_path, results)
         try:
             plot_results(results, plot_path)
             print(f"Plot saved to: {plot_path}")
@@ -430,6 +452,7 @@ def main() -> int:
 
         print(f"CSV saved to: {csv_path}")
         return 0
+
     except KeyboardInterrupt:
         print("\nInterrupted by user")
         return 130

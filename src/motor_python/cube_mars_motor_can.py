@@ -844,6 +844,10 @@ class CubeMarsAK606v3CAN(BaseMotor):
             raise ValueError("refresh_rate_hz must be > 0")
         self._refresh_interval = 1.0 / float(refresh_rate_hz)
         self._tx_min_interval = max(0.0, self._refresh_interval / 2.0)
+        try:
+            self.reset_timing_stats()
+        except Exception:
+            logger.debug("Failed to reset timing stats after refresh rate change")
 
     # ------------------------------------------------------------------
     # BaseMotor-required API
