@@ -5,13 +5,12 @@ import time
 from loguru import logger
 
 from motor_python.cube_mars_motor_can import CubeMarsAK606v3CAN
-from motor_python.definitions import MOTOR_LIMITS, TendonAction
-from motor_python.motor_manager import MotorManager
 from motor_python.definitions import (
     CAN_DEFAULTS,
     MOTOR_LIMITS,
     TendonAction,
 )
+from motor_python.motor_manager import MotorManager
 
 # ---------------------------------------------------------------------------
 # Composable helpers (accept a motor instance)
