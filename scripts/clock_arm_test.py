@@ -1,5 +1,7 @@
 """Clock-arm motor accuracy test.
 
+TODO: discuss why this class still uses set_duty_cycle even though we use MIT mode. The method is not even implemented
+
 Attaches to the motor via CAN and moves the arm through clock-like positions
 using only the CubeMarsAK606v3CAN class methods — no raw CAN structs, no
 manual PID.
@@ -18,20 +20,23 @@ Run
 ---
     source .venv/bin/activate
     sudo ./setup_can.sh
-    python scripts/clock_arm_test.py
+    python scripts/clock_arm_test.py --motor-model AK80-6
 """
 
+import argparse
 import csv
 import sys
 import time
 from datetime import datetime
 from itertools import groupby
 from pathlib import Path
+from typing import Any
 
 from loguru import logger
 
 from motor_python.definitions import CAN_DEFAULTS
-from motor_python.cube_mars_motor_can import CubeMarsAK606v3CAN
+from motor_python.cube_mars_motor_can import CubeMarsAK606v3CAN, CubeMarsAK806v2CAN
+from motor_python import create_can_motor
 
 # Suppress INFO/DEBUG logs from the motor class so terminal output stays clean.
 # Change to "DEBUG" to see every CAN frame sent/received.
@@ -54,6 +59,30 @@ LOOP_HZ      = CAN_DEFAULTS.motor_control_rate_hz        # control loop rate (Hz
 LOG_DIR      = Path(__file__).parent.parent / "data" / "logs"
 # ──────────────────────────────────────────────────────────────────────────────
 
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Clock-arm motor accuracy test")
+    parser.add_argument("--interface", default="can0", help="SocketCAN interface")
+    parser.add_argument(
+        "--motor-id",
+        type=lambda value: int(value, 0),
+        default=0x03,
+        help="Motor CAN ID in decimal or hex (default: 0x03)",
+    )
+    parser.add_argument(
+        "--bitrate",
+        type=int,
+        default=1_000_000,
+        help="CAN bitrate (default: 1000000)",
+    )
+    parser.add_argument(
+        "--motor-model",
+        choices=("AK60-6", "AK80-6"),
+        default="AK60-6",
+        help="Motor model to instantiate (default: AK60-6)",
+    )
+    return parser.parse_args()
+
 PHASES = [
     (12, 30,  "Phase 1 — 12 × 30°"),
     ( 6, 60,  "Phase 2 —  6 × 60°"),
@@ -71,7 +100,7 @@ FIELDNAMES = [
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
-def enable_with_retry(motor: CubeMarsAK606v3CAN, attempts: int = 6) -> bool:
+def enable_with_retry(motor: CubeMarsAK606v3CAN | CubeMarsAK806v2CAN, attempts: int = 6) -> bool:
     """Send enable and retry until the motor ACKs, or give up after *attempts*."""
     for _ in range(attempts):
         motor.enable_motor()
@@ -90,7 +119,7 @@ def pd_duty(error: float, speed: int) -> float:
 
 
 def move_to(
-    motor: CubeMarsAK606v3CAN,
+    motor: CubeMarsAK606v3CAN | CubeMarsAK806v2CAN,
     target_deg: float,
     label: str,
     step: int | str,
@@ -179,7 +208,7 @@ def move_to(
 
 
 def run_phase(
-    motor: CubeMarsAK606v3CAN,
+    motor: Any,
     steps: int,
     step_deg: float,
     label: str,
@@ -253,9 +282,13 @@ def main() -> None:
     ts       = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     csv_path = LOG_DIR / f"clock_arm_{ts}.csv"
 
+    args = parse_args()
+
     print("=" * 60)
     print("  Clock-Arm Motor Accuracy Test")
     print(f"  {datetime.now().strftime('%Y-%m-%d  %H:%M:%S')}")
+    print(f"  Motor model: {args.motor_model}")
+    print(f"  Motor ID: 0x{args.motor_id:02X}  |  Interface: {args.interface}  |  Bitrate: {args.bitrate}")
     print(f"  KP={KP}  KD={KD}  MAX_DUTY={MAX_DUTY}  DEADBAND={DEADBAND}°")
     print(f"  Settle: ±{SETTLE_DEG}°  <{SETTLE_ERPM} ERPM  for {SETTLE_TIME}s  |  Hold: {HOLD_TIME}s")
     print(f"  Log → {csv_path.name}")
@@ -265,9 +298,19 @@ def main() -> None:
         writer = csv.DictWriter(csv_file, fieldnames=FIELDNAMES)
         writer.writeheader()
 
-        with CubeMarsAK606v3CAN() as motor:
+        with create_can_motor(
+            args.motor_model,
+            motor_can_id=args.motor_id,
+            interface=args.interface,
+            bitrate=args.bitrate,
+        ) as motor:
             if not motor.connected:
                 print("\n  ✗  CAN bus not available — run: sudo ./setup_can.sh")
+                return
+
+            print("\nChecking communication...")
+            if not motor.check_communication():
+                print("Communication failed")
                 return
 
             # ── Enable ────────────────────────────────────────────────────────
@@ -289,7 +332,7 @@ def main() -> None:
 
             # ── Zero the origin ───────────────────────────────────────────────
             print("\n  Setting origin (current position = 0°)...")
-            motor.set_origin()
+            motor.zero_position()
             # Let firmware process the origin command, then send a zero-duty frame
             # to get a fresh feedback frame (set_origin has no ACK on this unit).
             time.sleep(0.5)

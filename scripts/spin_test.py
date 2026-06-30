@@ -1,5 +1,6 @@
 # ruff: noqa: T201
 """Spin the motor forward for 2 s, pause, then spin backward for 2 s.
+Only for AK60-6. Does not use MIT mode.
 
 Demonstrates CAN communication in both directions.
 Run:  sudo ./setup_can.sh && .venv/bin/python scripts/spin_test.py

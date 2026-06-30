@@ -1,4 +1,5 @@
 """Test CubeMars AK60-6 v3 native velocity loop (0x0303).
+Only works for AK60-6.
 
 This script bypasses the high-level library and sends raw CAN frames so every
 step is visible and auditable.

@@ -1,4 +1,5 @@
 """Motion capture validation -- pure velocity feedforward sine sweep.
+Only works for AK60-6.
 
 Motor: CubeMars AK60-6 v3, CAN ID 0x03, CAN bus (can0, 1 Mbps).
 
