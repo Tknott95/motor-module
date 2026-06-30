@@ -1,5 +1,7 @@
 """Clock-arm motor accuracy test.
 
+TODO: discuss why this class still uses set_duty_cycle even though we use MIT mode. The method is not even implemented
+
 Attaches to the motor via CAN and moves the arm through clock-like positions
 using only the CubeMarsAK606v3CAN class methods — no raw CAN structs, no
 manual PID.
@@ -18,7 +20,7 @@ Run
 ---
     source .venv/bin/activate
     sudo ./setup_can.sh
-    python scripts/clock_arm_test.py
+    python scripts/clock_arm_test.py --motor-model AK80-6
 """
 
 import argparse
@@ -306,6 +308,11 @@ def main() -> None:
                 print("\n  ✗  CAN bus not available — run: sudo ./setup_can.sh")
                 return
 
+            print("\nChecking communication...")
+            if not motor.check_communication():
+                print("Communication failed")
+                return
+
             # ── Enable ────────────────────────────────────────────────────────
             print("\n  Enabling motor...")
             if not enable_with_retry(motor):
@@ -325,7 +332,7 @@ def main() -> None:
 
             # ── Zero the origin ───────────────────────────────────────────────
             print("\n  Setting origin (current position = 0°)...")
-            motor.set_origin()
+            motor.zero_position()
             # Let firmware process the origin command, then send a zero-duty frame
             # to get a fresh feedback frame (set_origin has no ACK on this unit).
             time.sleep(0.5)

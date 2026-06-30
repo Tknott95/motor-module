@@ -1,7 +1,12 @@
 # ruff: noqa: T201  (print is intentional in this diagnostic script)
 """Quick test to check motor feedback.
+Works for AK60-6 and AK80-6
 
-Run this after: sudo ./setup_can.sh && .venv/bin/python scripts/quick_test.py
+Run this after:
+sudo ./setup_can.sh && .venv/bin/python scripts/quick_test.py
+
+sudo ./setup_can.sh && .venv/bin/python scripts/quick_test.py --motor-model AK80-6
+
 Make sure the UART cable is DISCONNECTED from the motor first.
 """
 

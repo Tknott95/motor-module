@@ -13,7 +13,7 @@ Run:
     .venv/bin/python scripts/verify_set_velocity.py --motor-id 0x03
 
     sudo ./setup_can.sh
-    .venv/bin/python scripts/verify_set_velocity.py --motor-id 0x03 --velocity-rad 1 --motor-model AK80-6
+    .venv/bin/python scripts/verify_set_velocity.py --motor-id 0x03 --velocity-rad 2 --motor-model AK80-6
 """
 # ruff: noqa: T201
 
@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Callable
 
 from motor_python.base_motor import MotorState, print_timing_stats
+from motor_python import create_can_motor
 from motor_python.can_utils import get_can_state, reset_can_interface
 from motor_python.cube_mars_motor_can import CubeMarsAK606v3CAN, CubeMarsAK806v2CAN
 from motor_python.definitions import CAN_DEFAULTS
@@ -90,6 +91,12 @@ def parse_args() -> argparse.Namespace:
         help="Motor CAN ID in decimal or hex (default: 0x03)",
     )
     parser.add_argument(
+        "--motor-model",
+        choices=("AK60-6", "AK80-6"),
+        default="AK60-6",
+        help="Motor model to instantiate (default: AK60-6)",
+    )
+    parser.add_argument(
         "--bitrate",
         type=int,
         default=CAN_DEFAULTS.bitrate,
@@ -132,12 +139,6 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=None,
         help="Test start velocity in rad/s (commands MIT vel_rad_s directly). Overrides --velocity-erpm if set.",
-    )
-    parser.add_argument(
-        "--motor-model",
-        choices=("AK60-6", "AK80-6"),
-        default="AK60-6",
-        help="Motor model to instantiate (default: AK60-6)",
     )
     parser.add_argument(
         "--velocity-kd",
@@ -280,7 +281,7 @@ def ensure_can_ready(interface: str, bitrate: int, *, mode: str) -> None:
         )
 
 
-def read_status(motor, timeout: float) -> MotorState | None:
+def read_status(motor: CubeMarsAK606v3CAN | CubeMarsAK806v2CAN, timeout: float) -> MotorState | None:
     """Read freshest available feedback without long blocking."""
     status = motor._receive_feedback(timeout=timeout)
     if status is not None:
@@ -288,7 +289,7 @@ def read_status(motor, timeout: float) -> MotorState | None:
     return motor._last_feedback
 
 
-def _command_phase(motor, command_erpm: int, command_rad_s: float | None = None, kd: float = 0.0) -> None:
+def _command_phase(motor: CubeMarsAK606v3CAN | CubeMarsAK806v2CAN, command_erpm: int, command_rad_s: float | None = None, kd: float = 0.0) -> None:
     """Send one phase command."""
     # if not motor.isinstance((CubeMarsAK606v3CAN, CubeMarsAK806v2CAN)):
     #     raise TypeError("Expected CubeMarsAK606v3CAN or CubeMarsAK806v2CAN motor instance")
@@ -330,7 +331,7 @@ def _sign(value: float) -> int:
 
 
 def run_phase(  # noqa: PLR0913
-    motor,
+    motor: CubeMarsAK606v3CAN | CubeMarsAK806v2CAN,
     *,
     phase_index: int,
     command_erpm: int,
@@ -495,7 +496,7 @@ def main() -> int:  # noqa: C901, PLR0912, PLR0915
 
     ensure_can_ready(args.interface, bitrate=args.bitrate, mode=args.preflight_mode)
 
-    motor: CubeMarsAK606v3CAN | None = None
+    motor: CubeMarsAK606v3CAN | CubeMarsAK806v2CAN | None = None
     csv_file = None
     csv_writer: csv.DictWriter | None = None
     run_start = 0.0
@@ -515,30 +516,23 @@ def main() -> int:  # noqa: C901, PLR0912, PLR0915
             csv_writer.writerow(row)
             csv_file.flush()
 
-        # Instantiate the requested motor model
-        if args.motor_model == "AK80-6":
-            motor = CubeMarsAK806v2CAN(
+        motor = create_can_motor(
+                args.motor_model,
                 motor_can_id=args.motor_id,
                 interface=args.interface,
                 bitrate=args.bitrate,
                 mit_velocity_kd=args.velocity_kd,
                 helper_policy=args.helper_policy,
-                allow_legacy_feedback_ids=args.allow_legacy_feedback_ids,
+                # allow_legacy_feedback_ids=args.allow_legacy_feedback_ids,
                 feedback_can_id=args.feedback_can_id,
-            )
-        else:
-            motor = CubeMarsAK606v3CAN(
-                motor_can_id=args.motor_id,
-                interface=args.interface,
-                bitrate=args.bitrate,
-                mit_velocity_kd=args.velocity_kd,
-                helper_policy=args.helper_policy,
-                allow_legacy_feedback_ids=args.allow_legacy_feedback_ids,
-                feedback_can_id=args.feedback_can_id,
-            )
+        )
+
         if not motor.connected:
             print("FAIL: could not connect to CAN motor interface")
             return 1
+        print("PASS: motor communication verified")
+
+        motor.send_neutral_command()
 
         if not motor.check_communication():
             print("FAIL: communication check failed (no feedback)")

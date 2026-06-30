@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Reset motor position to a chosen degree in MIT command space.
+Works for Ak60-6 and AK80-6.
 
 Important:
 - MIT-only firmware path does not support true encoder-origin reset (`set_origin`).
@@ -205,7 +206,7 @@ def main() -> int:
             interface=args.interface,
             bitrate=args.bitrate,
             helper_policy=args.helper_policy,
-            allow_legacy_feedback_ids=args.allow_legacy_feedback_ids,
+            # allow_legacy_feedback_ids=args.allow_legacy_feedback_ids,
         )
         if not motor.connected:
             print("FAIL: CAN interface not connected")

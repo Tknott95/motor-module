@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # ruff: noqa: T201
 """
-    Only for AK80-6: Spin the motor forward for a few seconds.
+    Only for AK80-6:
+    Spin the motor forward for a few seconds.
+
+    Run:
+    sudo ./setup_can.sh
     .venv/bin/python scripts/simple_test_ak80-6.py
 """
 
@@ -11,8 +15,8 @@ import time
 from motor_python import create_can_motor
 
 MOTOR_ID = 0x03
-TORQUE = 1.0      # Nm
-DURATION = 1.0    # seconds
+TORQUE = -1.0      # Nm
+DURATION = 2.0    # seconds
 
 
 def main():
@@ -36,26 +40,35 @@ def main():
 
         print(f"Applying {TORQUE} Nm torque for {DURATION}s")
 
-        t0 = time.time()
-
-        while time.time() - t0 < DURATION:
-            motor.set_mit_mode(
+        motor.send_neutral_command()  # send neutral command to keep motor in MIT mode
+        motor.set_mit_mode(
                 pos_rad=0.0,
-                vel_rad_s=2.0,
+                vel_rad_s=-2.0,
                 kp=0.0,
                 kd=0.2,
-                torque_ff_nm=3,
+                torque_ff_nm=TORQUE,
             )
+        time.sleep(DURATION)  # give the motor a moment to respond
 
-            pos = motor.get_position()
-            vel = motor.get_speed()
+        # t0 = time.time()
+        # while time.time() - t0 < DURATION:
+        #     motor.set_mit_mode(
+        #         pos_rad=0.0,
+        #         vel_rad_s=2.0,
+        #         kp=0.0,
+        #         kd=0.2,
+        #         torque_ff_nm=0,
+        #     )
 
-            print(
-                f"pos={pos:.3f} "
-                f"vel={vel:.3f}"
-            )
+        #     pos = motor.get_position()
+        #     vel = motor.get_speed()
 
-            time.sleep(0.02)
+        #     print(
+        #         f"pos={pos:.3f} "
+        #         f"vel={vel:.3f}"
+        #     )
+
+        #     time.sleep(0.02)
 
         print("Stopping...")
         motor.stop()

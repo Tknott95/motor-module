@@ -2,6 +2,7 @@
 """Spin the motor forward for 2 s, pause, then spin backward for 2 s.
 
 Demonstrates CAN communication in both directions.
+
 Run:
 sudo ./setup_can.sh && .venv/bin/python scripts/spin_test.py
 sudo ./setup_can.sh && .venv/bin/python scripts/spin_test_ak80_6.py --motor-model AK80-6
@@ -14,6 +15,7 @@ import argparse
 import can
 import numpy as np
 from motor_python import create_can_motor
+from motor_python.cube_mars_motor_can import CubeMarsAK606v3CAN, CubeMarsAK806v2CAN
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,42 +58,59 @@ def parse_args() -> argparse.Namespace:
 
 DUTY      = 0.40      # 40% — adjust if you want more/less speed
 SPIN_SECS = 1.0
-PAUSE_SECS = 0.1
+PAUSE_SECS = 1
 
 MAX_ERPM = 8000
 
-def spin(motor, direction: int, duration: float):
+def spin(motor: CubeMarsAK606v3CAN | CubeMarsAK806v2CAN, direction: int, duration: float):
     print(f"\nSpin {'FWD' if direction > 0 else 'REV'}")
 
     erpm = int(direction * DUTY * MAX_ERPM)
     erpm = int(np.clip(erpm, -MAX_ERPM, MAX_ERPM)) # Clip to motor limits
 
-    t0 = time.time()
+    motor.send_neutral_command()  # send neutral command to keep motor in MIT mode
+    motor.set_velocity(erpm)
+    time.sleep(duration)  # give the motor a moment to respond
 
-    while time.time() - t0 < duration:
-        # TODO: Both are working right now, check which one makes sense to use here
-        # motor.set_mit_mode(
-        #     pos_rad=0.0,
-        #     vel_rad_s=2.0 * direction,
-        #     kp=0.5,
-        #     kd=0.2,
-        #     torque_ff_nm=3.0 * direction
-        # )
-        motor.set_velocity(erpm*direction)
+    # t0 = time.time()
+    # while time.time() - t0 < duration:
+    #     # TODO: Both are working right now, check which one makes sense to use here
+    #     # motor.set_mit_mode(
+    #     #     pos_rad=0.0,
+    #     #     vel_rad_s=2.0 * direction,
+    #     #     kp=0.5,
+    #     #     kd=0.2,
+    #     #     torque_ff_nm=3.0 * direction
+    #     # )
+    #     motor.set_velocity(erpm)
 
-        pos = motor.get_position()
-        vel = motor.get_speed()
+    #     status = motor.get_status()
 
-        if pos is not None:
-            print(f"pos={pos:.2f} deg  vel={vel:.2f}")
+    #     pos = motor.get_position()
+    #     vel = motor.get_speed()
 
-        time.sleep(0.02)
+    #     logger.log(
+    #             cmd_pos=0.0,
+    #             cmd_vel=erpm,
+    #             cmd_tau=0.0,
+    #             act_pos=status.position_degrees,
+    #             act_vel=status.speed_erpm,
+    #             act_current=status.current_amps,
+    #             temperature=status.temperature_celsius,
+    #         )
+
+
+    #     if pos is not None:
+    #         print(f"pos={pos:.2f} deg  vel={vel:.2f}")
+
+        # time.sleep(0.01)
 
     motor.stop()
 
 
 def main() -> int:
     """Run simple spin forward, stop and spin reverse."""
+
     args = parse_args()
 
     print(f"Simple {args.motor_model} Velocity Spin")

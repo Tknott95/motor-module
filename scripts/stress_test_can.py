@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """CAN reliability stress test — verifies the driver works under harsh conditions.
+Works for AK60-6 and AK80-6 (However, needs to be tested for AK80-6, communication problems)
 
 Runs multiple rounds of connect → enable → get_status → disable → close,
 simulating real usage patterns including:

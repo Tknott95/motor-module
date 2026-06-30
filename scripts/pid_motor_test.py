@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """PID position control test for CubeMars AK60-6 motor.
-
+Only works for AK60-6.
+Implemented for AK80-6 but never tested.
 
 This script is intentionally simple and strict:
 1. Bring CAN to a known-good state (optional auto reset).

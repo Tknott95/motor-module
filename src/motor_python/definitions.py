@@ -96,7 +96,7 @@ class CANDefaults:
     receive_timeout: float = 0.5  # Timeout for receiving CAN messages (seconds)
     connection_stabilization_delay: float = 0.05  # Delay after CAN bus init
     max_retries: int = 3  # Max transmission retries on error
-    motor_control_rate_hz: int = 100  # Motor periodic feedback rate (from motor config)
+    feedback_rate_hz: int = 100  # Motor periodic feedback rate (from motor config)
     refresh_capture_window_s: float = 0.025  # Per-iteration receive window in the refresh loop (s); covers one keepalive + command round-trip (~20 ms) within the 100 ms watchdog budget
     mit_position_kp: float = 20.0  # Default stiffness for set_position() in MIT mode
     mit_position_kd: float = 1.0  # Default damping for set_position() in MIT mode
@@ -120,7 +120,7 @@ class MotorSpec:
     max_output_speed_rpm: int
     max_velocity_electrical_rpm: int
     min_velocity_electrical_rpm: int
-    mit_position_kp: float = 20.0
+    mit_position_kp: float = 2.0
     mit_position_kd: float = 1.0
     mit_velocity_kd: float = 0.2
     mit_mode_limits: MITModeLimits = AK60_6_MIT_LIMITS
@@ -304,7 +304,7 @@ AK80_6_MOTOR_SPEC = MotorSpec(
     max_output_speed_rpm=800,
     max_velocity_electrical_rpm=16800,  # 800 RPM * 21 pole pairs
     min_velocity_electrical_rpm=-16800,  # -800 RPM * 21 pole pairs
-    mit_position_kp=20.0,
+    mit_position_kp=1.0,
     mit_position_kd=1.0,
     mit_velocity_kd=0.5,
     mit_mode_limits=AK80_6_MIT_LIMITS,

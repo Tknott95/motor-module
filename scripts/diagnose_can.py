@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CAN reliability diagnostic for CubeMars AK60-6/AK80-6.
+"""CAN reliability diagnostic for CubeMars AK60-6 and AK80-6.
 
 Tests each phase of the connection sequence independently:
   1. CAN bus state (ERROR-ACTIVE vs PASSIVE vs BUS-OFF)

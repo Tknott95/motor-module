@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MIT position step script for long motion-capture runs.
+"""MIT position step script for long motion-capture runs for AK60-6 and AK80-6.
 
 This script avoids MIT position-limit lockups by stepping back-and-forth
 (ping-pong) inside a safe command window.
@@ -12,6 +12,7 @@ Primary controls:
 Example:
     .venv/bin/python scripts/mit_position_steps.py --motor-id 0x03 --angle-deg 30 --duration 180 --velocity-deg-s 20
 
+    sudo ./setup_can.sh
     .venv/bin/python scripts/mit_position_steps.py --motor-id 0x03 --angle-deg 30 --duration 180 --velocity-deg-s 40 --motor-model AK80-6
 """
 # ruff: noqa: T201
@@ -408,11 +409,12 @@ def main() -> int:
             interface=args.interface,
             bitrate=args.bitrate,
             helper_policy=args.helper_policy,
-            allow_legacy_feedback_ids=args.allow_legacy_feedback_ids,
+            # allow_legacy_feedback_ids=args.allow_legacy_feedback_ids,
         )
         if not motor.connected:
             print("\nFAIL: CAN interface not connected")
             return 1
+        motor.send_neutral_command()
 
         print("\nChecking communication...")
         if not motor.check_communication():

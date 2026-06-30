@@ -1,5 +1,5 @@
 """CAN class function demo — exercises every public method of the CAN motor driver.
-
+Works for AK60-6 and AK80-6
 Run:
     sudo ./setup_can.sh
     .venv/bin/python scripts/can_demo.py
