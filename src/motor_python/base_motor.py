@@ -8,6 +8,7 @@ must implement the abstract transport-layer methods.
 from __future__ import annotations
 
 import abc
+import math
 import time
 from dataclasses import dataclass
 from typing import Self
@@ -136,6 +137,14 @@ class BaseMotor(abc.ABC):
 
         :param velocity_erpm: Validated and clamped velocity in ERPM.
         """
+
+    def degrees_to_radians(self, degrees: float) -> float:
+        """Convert degrees to radians."""
+        return degrees * math.pi / 180.0
+
+    def radians_to_degrees(self, radians: float) -> float:
+        """Convert radians to degrees."""
+        return radians * 180.0 / math.pi
 
     # ------------------------------------------------------------------
     # Unified Advanced Control Methods (Stubbed by default)

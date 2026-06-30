@@ -16,6 +16,17 @@ from motor_python.definitions import CAN_DEFAULTS, DEFAULT_LOG_LEVEL, LogLevel
 from motor_python.examples_can import run_motor_demo_can, run_multi_motor_demo
 from motor_python.motor_manager import MotorManager
 from motor_python.utils import setup_logger
+from motor_python.cube_mars_motor_can import CubeMarsAK606v3CAN
+from motor_python.definitions import (
+    CAN_DEFAULTS,
+    DEFAULT_LOG_LEVEL,
+    DEFAULT_MOTOR_SPEC,
+    LogLevel,
+    MotorModel,
+    set_current_motor_model_by_name,
+)
+from motor_python.examples_can import multi_motor_can_example, run_motor_demo_can
+from motor_python.utils import setup_logger
 
 
 def main(  # noqa: PLR0913
@@ -25,6 +36,7 @@ def main(  # noqa: PLR0913
     discover: bool = False,
     motor_ids: list[int] | None = None,
     interface: str = CAN_DEFAULTS.interface,
+    motor_model: str = DEFAULT_MOTOR_SPEC.model_name,
 ) -> None:
     """Run the main CAN motor control loop.
 
@@ -40,7 +52,10 @@ def main(  # noqa: PLR0913
     """
     setup_logger(log_level=log_level, stderr_level=stderr_level)
 
-    # Configure motor IDs
+    set_current_motor_model_by_name(motor_model)
+    logger.info(f"Selected motor model: {motor_model}")
+
+    # --- Two-motor mode ---
     if dual:
         motor_ids = [CAN_DEFAULTS.motor_can_id, CAN_DEFAULTS.motor_can_id_2]
 
@@ -142,6 +157,13 @@ if __name__ == "__main__":  # pragma: no cover
         "--interface",
         default=CAN_DEFAULTS.interface,
         help="SocketCAN interface to use (default: can0).",
+    )
+    parser.add_argument(
+        "--motor-model",
+        type=str,
+        choices=list(MotorModel),
+        default=DEFAULT_MOTOR_SPEC.model_name,
+        help="Select motor type (AK60-6 or AK80-6).",
     )
     args = parser.parse_args()
 

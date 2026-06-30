@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """MIT velocity step test for the motion-capture rig.
+Works for AK60-6.
+Implemented for AK80-6 but never tested!!!
 
 This script validates the current MIT-backed CAN velocity helper by running a
 repeatable step sequence and logging:
@@ -59,8 +61,9 @@ from typing import Any
 
 from motor_python.base_motor import MotorState
 from motor_python.can_utils import get_can_state, reset_can_interface
-from motor_python.cube_mars_motor_can import CubeMarsAK606v3CAN
+from motor_python import create_can_motor, definitions
 from motor_python.definitions import CAN_DEFAULTS
+from motor_python.cube_mars_motor_can import CubeMarsAK606v3CAN, CubeMarsAK806v2CAN
 
 SEPARATOR = "=" * 84
 DEFAULT_SEQUENCE = "0:1.5,5000:2.5,7000:2.5,0:1.5,-5000:2.5,-7000:2.5,0:1.5"
@@ -294,6 +297,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=1_000_000,
         help="CAN bitrate (default: 1000000)",
+    )
+    parser.add_argument(
+        "--motor-model",
+        choices=("AK60-6", "AK80-6"),
+        default="AK60-6",
+        help="Motor model to instantiate (default: AK60-6)",
     )
     parser.add_argument(
         "--helper-policy",
@@ -576,7 +585,7 @@ def _coerce_optional_float(value: Any) -> float | None:
     return float(value)
 
 
-def read_status(motor: CubeMarsAK606v3CAN, timeout: float) -> MotorState | None:
+def read_status(motor: CubeMarsAK606v3CAN | CubeMarsAK806v2CAN, timeout: float) -> MotorState | None:
     """Read the freshest feedback sample without blocking for the full default timeout."""
     status = motor._receive_feedback(timeout=timeout)
     if status is not None:
@@ -585,7 +594,7 @@ def read_status(motor: CubeMarsAK606v3CAN, timeout: float) -> MotorState | None:
 
 
 def command_velocity(
-    motor: CubeMarsAK606v3CAN,
+    motor: CubeMarsAK606v3CAN | CubeMarsAK806v2CAN,
     phase: VelocityPhase,
     *,
     zero_mode: str,
@@ -1008,7 +1017,7 @@ def create_logged_sample(
         motor_speed_erpm=status.speed_erpm if status else None,
         motor_mech_deg_s=(
             (status.speed_erpm * 6.0)
-            / (CAN_DEFAULTS.motor_pole_pairs * CAN_DEFAULTS.motor_gear_ratio)
+            / (definitions.CURRENT_MOTOR_SPEC.pole_pairs * definitions.CURRENT_MOTOR_SPEC.gear_ratio)
             if status is not None
             else None
         ),
@@ -1047,7 +1056,7 @@ def read_mocap_sample(context: RunContext, *, now: float) -> MocapSample:
 
 
 def run_phase(
-    motor: CubeMarsAK606v3CAN,
+    motor: CubeMarsAK606v3CAN | CubeMarsAK806v2CAN,
     phase: VelocityPhase,
     context: RunContext,
 ) -> None:
@@ -1128,7 +1137,7 @@ def execute_run(
 ) -> list[LoggedSample]:
     """Run the full bench sequence and return captured rows."""
     rows: list[LoggedSample] = []
-    motor: CubeMarsAK606v3CAN | None = None
+    motor: CubeMarsAK606v3CAN | CubeMarsAK806v2CAN | None = None
     csv_file = None
     mocap_estimator = AngleVelocityEstimator(args.mocap_velocity_alpha)
 
@@ -1139,7 +1148,8 @@ def execute_run(
 
         mocap_adapter.start()
 
-        motor = CubeMarsAK606v3CAN(
+        motor = create_can_motor(
+            args.motor_model,
             motor_can_id=args.motor_id,
             interface=args.interface,
             bitrate=args.bitrate,

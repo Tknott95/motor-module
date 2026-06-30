@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Scan CAN IDs 1-10 to find which motor ID the AK60-6 responds on."""
+"""Scan CAN IDs 1-10 to find which motor ID the AK60-6 or AK80-6 responds on.
+No need to mention the motor model.
+
+Example:
+    sudo ./setup_can.sh
+    .venv/bin/python scripts/scan_ids.py
+"""
 import sys
 import time
 

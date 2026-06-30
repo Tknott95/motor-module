@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bench test for AK60-6 MIT mode on a single motor (default CAN ID 0x03).
+"""Bench test for AK60-6 and AK80-6 MIT mode on a single motor (default CAN ID 0x03).
 
 This script exercises all MIT-related public APIs in the current CAN driver:
 - enable_mit_mode()
@@ -11,7 +11,12 @@ This script exercises all MIT-related public APIs in the current CAN driver:
 Run:
     sudo ./setup_can.sh
     .venv/bin/python scripts/mit_mode_test.py
-"""
+
+    sudo ./setup_can.sh
+    .venv/bin/python scripts/mit_mode_test.py --motor-model AK80-6 --include-spin-tests
+
+    IMPORTANT FOR SAKSHI: The parts where torque is commanded (torque feedforward and set_current) are commented out to avoid unexpected fast spinning. If motor spins too fast, it is made to stop immediately. Thats what happens in these 2 parts
+    """
 # ruff: noqa: T201, PLR0915, S110
 
 from __future__ import annotations
@@ -21,9 +26,10 @@ import subprocess
 import sys
 import time
 
+from motor_python import create_can_motor
 from motor_python.base_motor import MotorState
 from motor_python.can_utils import get_can_state
-from motor_python.cube_mars_motor_can import CubeMarsAK606v3CAN
+from motor_python.cube_mars_motor_can import CubeMarsAK606v3CAN, CubeMarsAK806v2CAN
 
 SEPARATOR = "=" * 72
 
@@ -68,7 +74,7 @@ def section(title: str) -> None:
 
 
 def print_status(
-    motor: CubeMarsAK606v3CAN, label: str, timeout: float = 0.4
+    motor: CubeMarsAK606v3CAN | CubeMarsAK806v2CAN, label: str, timeout: float = 0.4
 ) -> MotorState | None:
     """Print and return one status sample."""
     status = motor._receive_feedback(timeout=timeout)
@@ -86,10 +92,15 @@ def print_status(
         f"temp={status.temperature_celsius:3d} C | "
         f"err={status.error_code} ({status.error_description})"
     )
+    if abs(status.speed_erpm) >25000:
+        print(" FAIL: motor speed too high, stopping motor for safety")
+        motor.stop()
+        hold_and_log(motor, 0.8, "after stop")
+        raise RuntimeError(f"Motor speed too high: {status.speed_erpm} ERPM")
     return status
 
 
-def hold_and_log(motor: CubeMarsAK606v3CAN, seconds: float, label: str) -> None:
+def hold_and_log(motor: CubeMarsAK606v3CAN | CubeMarsAK806v2CAN, seconds: float, label: str) -> None:
     """Sleep for a short duration while printing live feedback and validating health."""
     end = time.time() + seconds
     no_feedback_count = 0
@@ -106,6 +117,7 @@ def hold_and_log(motor: CubeMarsAK606v3CAN, seconds: float, label: str) -> None:
                     f"Motor fault code {status.error_code}: {status.error_description}"
                 )
         time.sleep(0.25)
+    print(f"  {label}: hold complete ({seconds:.2f} s)")
 
 
 def parse_args() -> argparse.Namespace:
@@ -133,13 +145,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--position-deg",
         type=float,
-        default=10.0,
+        default=50.0,
         help="Position helper test target in degrees (default: 10)",
     )
     parser.add_argument(
         "--velocity-erpm",
         type=int,
-        default=3000,
+        default=5000,
         help="Velocity helper test command in ERPM (default: 3000)",
     )
     parser.add_argument(
@@ -151,7 +163,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--step-seconds",
         type=float,
-        default=0.8,
+        default=1.0,
         help="Duration per movement step (default: 0.8)",
     )
     parser.add_argument(
@@ -172,6 +184,12 @@ def parse_args() -> argparse.Namespace:
             "Disabled by default to avoid unexpected spinning."
         ),
     )
+    parser.add_argument(
+        "--motor-model",
+        choices=("AK60-6", "AK80-6"),
+        default="AK60-6",
+        help="Motor model to instantiate (default: AK60-6)",
+    )
     return parser.parse_args()
 
 
@@ -187,6 +205,7 @@ def main() -> int:  # noqa: C901, PLR0912
         args.step_seconds = max(0.3, min(0.6, args.step_seconds))
 
     print(f"Interface : {args.interface}")
+    print(f"Motor model: {args.motor_model}")
     print(f"Motor ID  : 0x{args.motor_id:02X}")
     print(f"Bitrate   : {args.bitrate}")
     print(f"Safe mode : {args.safe}")
@@ -202,9 +221,10 @@ def main() -> int:  # noqa: C901, PLR0912
     else:
         _ensure_can_ready(args.interface)
 
-    motor: CubeMarsAK606v3CAN | None = None
+    motor = None
     try:
-        motor = CubeMarsAK606v3CAN(
+        motor = create_can_motor(
+            args.motor_model,
             motor_can_id=args.motor_id,
             interface=args.interface,
             bitrate=args.bitrate,
@@ -224,30 +244,35 @@ def main() -> int:  # noqa: C901, PLR0912
             return 1
         print("PASS: motor communication verified")
 
+        motor.send_neutral_command()  # send neutral command to keep motor in MIT mode
+
         section("2) enable_mit_mode()")
         motor.enable_mit_mode()
         hold_and_log(motor, 0.7, "after enable_mit_mode")
 
         section("3) set_mit_mode() direct calls")
         print("- passive float (all zeros)")
+        motor.zero_position()
         motor.set_mit_mode(pos_rad=0.0, vel_rad_s=0.0, kp=0.0, kd=0.0, torque_ff_nm=0.0)
         hold_and_log(motor, args.step_seconds, "set_mit_mode passive")
 
         print("- position impedance")
+        motor.zero_position()  # zero the encoder before position test
         motor.set_mit_mode(
-            pos_rad=0.12 if args.safe else 0.30,
+            pos_rad=1.0,
             vel_rad_s=0.0,
-            kp=10.0 if args.safe else 25.0,
-            kd=0.8 if args.safe else 1.0,
+            kp=0.5 if args.safe else 1.0,
+            kd=0.2 if args.safe else 0.5,
             torque_ff_nm=0.0,
         )
         hold_and_log(motor, args.step_seconds, "set_mit_mode position")
 
         if args.include_spin_tests:
             print("- velocity damping")
+            motor.zero_position()
             motor.set_mit_mode(
                 pos_rad=0.0,
-                vel_rad_s=1.2 if args.safe else 3.0,
+                vel_rad_s=1.2 if args.safe else 2.0,
                 kp=0.0,
                 kd=1.0 if args.safe else 2.0,
                 torque_ff_nm=0.0,
@@ -262,11 +287,12 @@ def main() -> int:  # noqa: C901, PLR0912
                 kd=0.0,
                 torque_ff_nm=args.torque_nm,
             )
-            hold_and_log(motor, args.step_seconds, "set_mit_mode torque")
+            hold_and_log(motor, args.step_seconds/2, "set_mit_mode torque")
         else:
             print("- velocity/torque MIT subtests skipped (use --include-spin-tests)")
 
         section("4) set_position() helper (MIT-backed)")
+        motor.zero_position()  # zero the encoder before position test
         motor.set_position(args.position_deg)
         hold_and_log(motor, args.step_seconds, "set_position")
 
